@@ -22,7 +22,6 @@ Repeater will listen on the port 8080 and multiply each incoming GET request to 
 
 ## TODO
 
-* Add config file for multishot
-* Handle POST requests
 * Improve logging
+* Use httputil/ReverseProxy instead of hand-written version
 
