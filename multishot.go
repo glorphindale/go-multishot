@@ -15,10 +15,11 @@ func forward_request(downstream string, r *http.Request) (resp *http.Response, e
     client := &http.Client{}
 
     out_url := "http://" + downstream + r.URL.Path
-    req, _ := http.NewRequest("GET", out_url, r.Body) // Need to handle POST reqiests
+    req, _ := http.NewRequest(r.Method, out_url, r.Body) // TODO need to close r.Body, see http://golang.org/pkg/net/http/#Client.Do
     for h, v := range r.Header {
         req.Header.Add(h, strings.Join(v, ";"))
     }
+    req.ContentLength = r.ContentLength
     resp, err = client.Do(req)
     if err != nil {
         log.Println("Request", r.URL.Path, " to downstream", downstream, "failed")
@@ -39,7 +40,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
     if err == nil {
         io.Copy(w, resp.Body)
     } else {
-        w.WriteHeader(resp.StatusCode)
+        log.Println("Error", err)
+        w.WriteHeader(503)
     }
 }
 
