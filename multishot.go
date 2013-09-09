@@ -8,6 +8,7 @@ import (
     "log"
     "net/http"
     "strings"
+    //"runtime"
 )
 
 var downstreams []string
@@ -26,15 +27,15 @@ func forward_request(downstream string, in_req http.Request, body io.Reader) (re
     req.ContentLength = in_req.ContentLength
 
     resp, err = client.Do(req) // TODO need to close r.Body, see http://golang.org/pkg/net/http/#Client.Do
+    defer resp.Body.Close()
     if err != nil {
-        log.Println("Request", req.URL.Path, " to downstream", downstream, "failed", err)
+        log.Fatal("Request", req.URL.Path, " to downstream", downstream, "failed", err)
         return
     }
     return
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-    log.Println("Received request for", r.URL.Path)
 
     // Read the body, make it available for all the downstreams
     clength := r.ContentLength
@@ -46,19 +47,18 @@ func handler(w http.ResponseWriter, r *http.Request) {
         if err == nil {
             raw_body = body_part[:n]
         }
+        r.Body.Close()
     }
 
     for _, downstream := range downstreams[1:] {
-        log.Println("Firing off", downstream)
         go forward_request(downstream, *r, bytes.NewReader(raw_body))
     }
 
-    log.Println("Firing main", downstreams[0])
     resp, err := forward_request(downstreams[0], *r, bytes.NewReader(raw_body))
     if err == nil {
         io.Copy(w, resp.Body)
+        resp.Body.Close()
     } else {
-        log.Println("Error", err)
         w.WriteHeader(503)
     }
 }
