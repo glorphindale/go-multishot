@@ -1,6 +1,7 @@
 package main
 
 import (
+    "bytes"
     "flag"
     "fmt"
     "io"
@@ -9,31 +10,9 @@ import (
     "strings"
 )
 
-type CachedBody struct {
-    body []byte
-    size int
-    cur_pos int
-}
-
-func (b CachedBody) Read(p []byte) (n int, err error) {
-    log.Println(b)
-    if b.cur_pos == b.size {
-        return 0, io.EOF
-    }
-
-    copy(p, b.body[:b.size])
-    b.cur_pos += b.size
-    return b.size, io.EOF
-}
-
-func (b CachedBody) Close() error {
-    return nil
-}
-
-
 var downstreams []string
 
-func forward_request(downstream string, in_req http.Request, body CachedBody) (resp *http.Response, err error) {
+func forward_request(downstream string, in_req http.Request, body io.Reader) (resp *http.Response, err error) {
     client := &http.Client{}
 
     // Clone incoming request
@@ -57,27 +36,25 @@ func forward_request(downstream string, in_req http.Request, body CachedBody) (r
 func handler(w http.ResponseWriter, r *http.Request) {
     log.Println("Received request for", r.URL.Path)
 
+    // Read the body, make it available for all the downstreams
     clength := r.ContentLength
-    log.Println("Clength is", clength)
-    var body CachedBody
+    var raw_body []byte
 
     if clength != 0 {
         body_part := make([]byte, clength)
         n, err := r.Body.Read(body_part)
-        log.Println("N is", n, "clength is", clength)
         if err == nil {
-            body.body = body_part[:n]
-            body.size = int(clength)
+            raw_body = body_part[:n]
         }
     }
 
     for _, downstream := range downstreams[1:] {
         log.Println("Firing off", downstream)
-        go forward_request(downstream, *r, body)
+        go forward_request(downstream, *r, bytes.NewReader(raw_body))
     }
 
     log.Println("Firing main", downstreams[0])
-    resp, err := forward_request(downstreams[0], *r, body)
+    resp, err := forward_request(downstreams[0], *r, bytes.NewReader(raw_body))
     if err == nil {
         io.Copy(w, resp.Body)
     } else {
