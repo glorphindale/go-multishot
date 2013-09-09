@@ -1,27 +1,41 @@
 # go-multishot
 
-Simple http repeater. Handles request and sends it to multiple servers.
+Simple HTTP repeater. Receives a GET/POST/other request and sends it to multiple servers.
+Why use it?
+    
+* If you want to duplicate HTTP traffic from production system to a staging one
+* If you need to test new production system with traffic from an existing one
+* You can't use raw traffic duplication
 
 ## Usage
 
 Compile with
 
-    go build endpoint.go
     go build multishot.go
-
-Run two endpoints with
-
-    ./endpoint --port ":8090" &
-    ./endpoint --port ":8091" &
-
+    
 Then run
 
-    ./multishot
+    ./multishot -downstreams SERVER1,SERVER2
+    
+multishot accepts a list of downstream servers to duplicate request to.
+First downstream is treated as a 'main' server, and its response is returned from the multishot.
 
-Repeater will listen on the port 8080 and multiply each incoming GET request to both endpoints.
+multishot accepts -port argument with port number to bind to.
+
+## Testing
+
+I used endpoint.go for testing. It is a simple HTTP server that returns request content back.
+Build and run two endpoints with
+
+    go build endpoint.go
+    ./endpoint -port ":8090" &
+    ./endpoint -port ":8091" &
+    ./multishot -downstreams localhost:8090,localhost:8091
+
+Repeater will listen on the port 8080 and multiply each incoming request to both endpoints.
 
 ## TODO
 
 * Improve logging
 * Use httputil/ReverseProxy instead of hand-written version
-
+* FIXME: On hign loads panic occurs when closing response body
