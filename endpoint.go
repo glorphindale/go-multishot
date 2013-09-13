@@ -9,9 +9,12 @@ import (
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
-    log.Println("Incoming request for", r.URL.Path)
+    log.Println("Incoming request for", r.URL.Path, r.URL.RawQuery)
 
     msg := "Request:" + r.URL.Path
+    if r.URL.RawQuery != "" {
+        msg += "?" + r.URL.RawQuery
+    }
     msg += "\nHeaders:"
     for k, v := range r.Header {
         msg += k + ": " + strings.Join(v, ",") + ";"
