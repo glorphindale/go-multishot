@@ -18,6 +18,9 @@ func forward_request(downstream string, in_req http.Request, body io.Reader) (re
 
     // Clone incoming request
     out_url := "http://" + downstream + in_req.URL.Path
+    if in_req.URL.RawQuery != "" {
+        out_url += "?" + in_req.URL.RawQuery;
+    }
     req, _ := http.NewRequest(in_req.Method, out_url, body)
     for h, vv := range in_req.Header {
         for _, v := range vv {
@@ -27,15 +30,15 @@ func forward_request(downstream string, in_req http.Request, body io.Reader) (re
     req.ContentLength = in_req.ContentLength
 
     resp, err = client.Do(req) // TODO need to close r.Body, see http://golang.org/pkg/net/http/#Client.Do
-    defer resp.Body.Close()
     if err != nil {
-        log.Fatal("Request", req.URL.Path, " to downstream", downstream, "failed", err)
+        log.Fatal("Request ", req.URL.Path, " to downstream ", downstream, " failed ", err)
         return
     }
     return
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
+    log.Println("Received request", r.URL.Path, r.URL.RawQuery)
 
     // Read the body, make it available for all the downstreams
     clength := r.ContentLength
