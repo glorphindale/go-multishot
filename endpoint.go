@@ -9,9 +9,12 @@ import (
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
-    msg := "Request " + r.URL.Path
+    log.Println("Incoming request for", r.URL.Path)
+
+    msg := "Request:" + r.URL.Path
+    msg += "\nHeaders:"
     for k, v := range r.Header {
-        msg += ";\n\t" + k + ": " + strings.Join(v, ",")
+        msg += k + ": " + strings.Join(v, ",") + ";"
     }
 
     // Copy the request body
@@ -24,7 +27,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
         body = string(body_part[:n])
     }
 
-    msg += "\nBody: '" + body + "'"
+    msg += "\nBody:" + body
 
     fmt.Fprintf(w, msg)
 }
