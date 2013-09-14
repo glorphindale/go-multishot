@@ -13,7 +13,9 @@ import (
 
 var downstreams []string
 
-func forward_request(downstream string, in_req http.Request, body io.Reader) (resp *http.Response, err error) {
+// Forward *in_req* to specified *downstream*, with *body* (when POST is handled)
+// if *close_body* is true - close the body before returning
+func forward_request(downstream string, in_req http.Request, body io.Reader, close_body bool) (resp *http.Response, err error) {
     client := &http.Client{}
 
     // Clone incoming request
@@ -33,6 +35,9 @@ func forward_request(downstream string, in_req http.Request, body io.Reader) (re
     if err != nil {
         log.Fatal("Request ", req.URL.Path, " to downstream ", downstream, " failed ", err)
         return
+    }
+    if close_body {
+        resp.Body.Close()
     }
     return
 }
@@ -54,10 +59,10 @@ func handler(w http.ResponseWriter, r *http.Request) {
     }
 
     for _, downstream := range downstreams[1:] {
-        go forward_request(downstream, *r, bytes.NewReader(raw_body))
+        go forward_request(downstream, *r, bytes.NewReader(raw_body), true)
     }
 
-    resp, err := forward_request(downstreams[0], *r, bytes.NewReader(raw_body))
+    resp, err := forward_request(downstreams[0], *r, bytes.NewReader(raw_body), false)
     if err == nil {
         io.Copy(w, resp.Body)
         resp.Body.Close()
