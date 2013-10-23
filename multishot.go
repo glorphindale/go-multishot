@@ -8,10 +8,11 @@ import (
     "log"
     "net/http"
     "strings"
-    //"runtime"
+    "sync/atomic"
 )
 
 var downstreams []string
+var request_id uint64
 
 // Forward *in_req* to specified *downstream*, with *body* (when POST is handled)
 // if *close_body* is true - close the body before returning
@@ -42,8 +43,13 @@ func forward_request(downstream string, in_req http.Request, body io.Reader, clo
     return
 }
 
+func stat_handler(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "Handled %d requests\n", request_id)
+}
+
 func handler(w http.ResponseWriter, r *http.Request) {
-    log.Println("Received request", r.URL.Path, r.URL.RawQuery)
+    rid := atomic.AddUint64(&request_id, 1)
+    log.Println("Received request", rid, r.URL.Path, r.URL.RawQuery)
 
     // Read the body, make it available for all the downstreams
     clength := r.ContentLength
@@ -78,6 +84,7 @@ func main() {
 
     downstreams = strings.Split(*downstreams_raw, ",")
 
+    http.HandleFunc("/archer", stat_handler)
     http.HandleFunc("/", handler)
     port_string := fmt.Sprintf(":%d", *port)
     log.Println("Listening on port", port_string)
