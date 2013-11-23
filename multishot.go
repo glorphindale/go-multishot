@@ -6,6 +6,7 @@ import (
     "fmt"
     "io"
     "log"
+    "os"
     "net/http"
     "strings"
     "sync/atomic"
@@ -13,10 +14,16 @@ import (
 
 var downstreams []string
 var request_id uint64
+var mismatched_count uint64
+
+type DownstreamResult struct {
+    name string
+    code int
+}
 
 // Forward *in_req* to specified *downstream*, with *body* (when POST is handled)
 // if *close_body* is true - close the body before returning
-func forward_request(downstream string, in_req http.Request, body io.Reader, close_body bool) (resp *http.Response, err error) {
+func forward_request(downstream string, in_req http.Request, body io.Reader, close_body bool, comm chan DownstreamResult) (resp *http.Response, err error) {
     client := &http.Client{}
 
     // Clone incoming request
@@ -33,6 +40,7 @@ func forward_request(downstream string, in_req http.Request, body io.Reader, clo
     req.ContentLength = in_req.ContentLength
 
     resp, err = client.Do(req) // TODO need to close r.Body, see http://golang.org/pkg/net/http/#Client.Do
+    comm <- DownstreamResult{downstream, resp.StatusCode}
     if err != nil {
         log.Fatal("Request ", req.URL.Path, " to downstream ", downstream, " failed ", err)
         return
@@ -45,11 +53,37 @@ func forward_request(downstream string, in_req http.Request, body io.Reader, clo
 
 func stat_handler(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Handled %d requests\n", request_id)
+    fmt.Fprintf(w, "Mismatched %d responses\n", mismatched_count)
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func exit_handler(w http.ResponseWriter, r *http.Request) {
+    os.Exit(0)
+}
+
+func collector(count int, in chan DownstreamResult) {
+    storage := make([]DownstreamResult, count)
+
+    // This assumes that main downstream responds first
+    // TODO properly detect main downstream
+    storage[0] = <-in
+    fmt.Println("Main downstream respondes with ", storage[0].code)
+
+    for i := 1; i < count; i++ {
+        storage[i] = <-in
+        fmt.Println("Main downstream respondes with ", storage[0].code)
+        if storage[i].code != storage[0].code {
+            fmt.Println("Downstream ", storage[i].name, " mismatch:", storage[i].code)
+            atomic.AddUint64(&mismatched_count, 1)
+        }
+    }
+}
+
+func main_handler(w http.ResponseWriter, r *http.Request) {
     rid := atomic.AddUint64(&request_id, 1)
     log.Println("Received request", rid, r.URL.Path, r.URL.RawQuery)
+
+    comm := make(chan DownstreamResult)
+    go collector(len(downstreams), comm)
 
     // Read the body, make it available for all the downstreams
     clength := r.ContentLength
@@ -65,10 +99,10 @@ func handler(w http.ResponseWriter, r *http.Request) {
     }
 
     for _, downstream := range downstreams[1:] {
-        go forward_request(downstream, *r, bytes.NewReader(raw_body), true)
+        go forward_request(downstream, *r, bytes.NewReader(raw_body), true, comm)
     }
 
-    resp, err := forward_request(downstreams[0], *r, bytes.NewReader(raw_body), false)
+    resp, err := forward_request(downstreams[0], *r, bytes.NewReader(raw_body), false, comm)
     if err == nil {
         io.Copy(w, resp.Body)
         resp.Body.Close()
@@ -85,7 +119,8 @@ func main() {
     downstreams = strings.Split(*downstreams_raw, ",")
 
     http.HandleFunc("/archer", stat_handler)
-    http.HandleFunc("/", handler)
+    http.HandleFunc("/exit", exit_handler)
+    http.HandleFunc("/", main_handler)
     port_string := fmt.Sprintf(":%d", *port)
     log.Println("Listening on port", port_string)
     http.ListenAndServe(port_string, nil)
