@@ -49,7 +49,4 @@ Repeater will listen on the port 8080 and multiply each incoming request to both
 * BUG: Improve error tolerance - do not crash when downstream is not active
 * Improve /archer - monitor responses from different downstreams
 ** Monitor not only status code, but also SHA1 hash of the response
-* Add config processing
-** Downstreams list
-** Comments
-** Throttling ratio
+* Add config processing: Downstreams list, Comments, Throttling ratio
