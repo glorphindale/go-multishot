@@ -47,6 +47,5 @@ Repeater will listen on the port 8080 and multiply each incoming request to both
 * Use httputil/ReverseProxy instead of hand-written version
 * FIXME: On hign loads panic occurs when closing response body
 * BUG: Improve error tolerance - do not crash when downstream is not active
-* Improve /archer - monitor responses from different downstreams
-** Monitor not only status code, but also SHA1 hash of the response
+* Improve /archer - monitor responses from different downstreams; monitor not only status code, but also SHA1 hash of the response
 * Add config processing: Downstreams list, Comments, Throttling ratio
